@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Mouse 🖱️</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 800px;
+        }
+        #touchpad {
+            width: 100%;
+            height: 60vh;
+            background-color: #fff;
+            border: 2px solid #e0e0e0;
+            touch-action: none;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        #touchpad::before {
+            content: '👆';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2em;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .button-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        .button {
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1.1em;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+        .button:active {
+            transform: translateY(1px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .gesture-indicator {
+            position: absolute;
+            pointer-events: none;
+            font-size: 2em;
+            animation: fadeInOut 1s ease-in-out;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: scale(0.8); }
+            20% { opacity: 1; transform: scale(1.2); }
+            80% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0; transform: scale(0.8); }
+        }
+    </style>
+</head>
+<body>
+<div class="status" id="status">
+    <span id="connection-status">🔌</span>
+    <span>Connected</span>
+</div>
+<div class="container">
+    <div id="touchpad"></div>
+    <div class="button-container">
+        <button class="button" onclick="leftClick()">🖱️ Left Click</button>
+        <button class="button" onclick="rightClick()">🖱️ Right Click</button>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+<script>
+    const touchpad = document.getElementById('touchpad');
+    const status = document.getElementById('status');
+    const connectionStatus = document.getElementById('connection-status');
+    const stompClient = Stomp.over(new SockJS('/remote-mouse'));
+
+    let isTouching = false;
+    let lastX = 0;
+    let lastY = 0;
+    let lastDistance = 0;
+    let lastAngle = 0;
+    let lastTapTime = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+
+    function showGestureEmoji(emoji) {
+        const indicator = document.createElement('div');
+        indicator.className = 'gesture-indicator';
+        indicator.textContent = emoji;
+        indicator.style.left = `${lastX}px`;
+        indicator.style.top = `${lastY}px`;
+        touchpad.appendChild(indicator);
+        setTimeout(() => indicator.remove(), 1000);
+    }
+
+    function calculateDistance(touch1, touch2) {
+        return Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+    }
+
+    function calculateAngle(touch1, touch2) {
+        return Math.atan2(touch2.clientY - touch1.clientY, touch2.clientX - touch1.clientX);
+    }
+
+    function isDoubleTap(x, y) {
+        const currentTime = new Date().getTime();
+        const tapDistance = Math.hypot(x - lastTapX, y - lastTapY);
+        
+        if (currentTime - lastTapTime < 300 && tapDistance < 50) {
+            lastTapTime = 0;
+            return true;
+        }
+        
+        lastTapTime = currentTime;
+        lastTapX = x;
+        lastTapY = y;
+        return false;
+    }
+
+    touchpad.addEventListener('touchstart', (e) => {
+        isTouching = true;
+        const touch = e.touches[0];
+        lastX = touch.clientX;
+        lastY = touch.clientY;
+
+        if (isDoubleTap(touch.clientX, touch.clientY)) {
+            showGestureEmoji('👆');
+            stompClient.send("/app/click", {}, "left");
+            return;
+        }
+
+        if (e.touches.length === 2) {
+            lastDistance = calculateDistance(e.touches[0], e.touches[1]);
+            lastAngle = calculateAngle(e.touches[0], e.touches[1]);
+        }
+    });
+
+    touchpad.addEventListener('touchmove', (e) => {
+        if (!isTouching) return;
+
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - lastX;
+        const deltaY = touch.clientY - lastY;
+        lastX = touch.clientX;
+        lastY = touch.clientY;
+
+        if (e.touches.length === 2) {
+            const currentDistance = calculateDistance(e.touches[0], e.touches[1]);
+            const currentAngle = calculateAngle(e.touches[0], e.touches[1]);
+            
+            const distanceDiff = currentDistance - lastDistance;
+            if (Math.abs(distanceDiff) > 5) {
+                showGestureEmoji(distanceDiff > 0 ? '🔍' : '🔎');
+                stompClient.send("/app/zoom", {}, distanceDiff > 0 ? "in" : "out");
+            }
+
+            const angleDiff = currentAngle - lastAngle;
+            if (Math.abs(angleDiff) > 0.2) {
+                showGestureEmoji('🔄');
+                stompClient.send("/app/scroll", {}, Math.round(angleDiff * 20).toString());
+            }
+
+            lastDistance = currentDistance;
+            lastAngle = currentAngle;
+        } else {
+            const scaleX = screen.width / touchpad.clientWidth * 1.5;
+            const scaleY = screen.height / touchpad.clientHeight * 1.5;
+            stompClient.send("/app/moveDelta", {}, `${deltaX * scaleX},${deltaY * scaleY}`);
+        }
+    });
+
+    touchpad.addEventListener('touchend', () => {
+        isTouching = false;
+        showGestureEmoji('👋');
+    });
+
+    function leftClick() {
+        showGestureEmoji('👆');
+        stompClient.send("/app/click", {}, "left");
+    }
+
+    function rightClick() {
+        showGestureEmoji('🖖');
+        stompClient.send("/app/click", {}, "right");
+    }
+
+    stompClient.connect({}, 
+        () => {
+            connectionStatus.textContent = '🟢';
+            status.style.background = 'rgba(76, 175, 80, 0.1)';
+        },
+        () => {
+            connectionStatus.textContent = '🔴';
+            status.style.background = 'rgba(244, 67, 54, 0.1)';
+        }
+    );
+</script>
+</body>
+</html>
