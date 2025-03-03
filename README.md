@@ -38,8 +38,7 @@ A modern, gesture-controlled remote mouse application built with Spring Boot and
   - HTML5
   - CSS3
   - JavaScript
-  - SockJS
-  - STOMP
+
 
 ## 🚀 Getting Started
 
@@ -112,20 +111,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📝 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
 
-- Spring Boot team for the amazing framework
-- All contributors who help improve this project
-- The open-source community
-
-## 📞 Support
-
-If you encounter any issues or have questions, please open an issue in the GitHub repository.
-
----
-
-Made with ❤️ by [Your Name] 
